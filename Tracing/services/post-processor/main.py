@@ -27,20 +27,26 @@ class startWorkflowConnector(CoreConnector):
                 if len(dependency[traceID][spanID]['references']) == 1:
                     endTraceID = dependency[traceID][spanID]['references'][0]["traceId"]
                     endSpanID = dependency[traceID][spanID]['references'][0]["spanId"]
-                    if dependency.get(endTraceID, {}).get(endSpanID, {}).get('operationName', None) is not None:
-                        startOp = dependency[endTraceID][endSpanID]['operationName']
-                        startService = dependency[endTraceID][endSpanID]['service']
-                    else:
+                    if (
+                        dependency.get(endTraceID, {})
+                        .get(endSpanID, {})
+                        .get('operationName', None)
+                        is None
+                    ):
                         continue
+                    startOp = dependency[endTraceID][endSpanID]['operationName']
+                    startService = dependency[endTraceID][endSpanID]['service']
                     span_dependency_tree.add((startService, startOp, endService, endOp))
 
         db = GraphDatabase(os.getenv("NEO4j", "http://neo4j:7474"))
 
         for dependency in span_dependency_tree:
-            q = []
-            q.append(f'MERGE (nodestart:Service{{name:"{dependency[0]}"}})')
-            q.append(f'MERGE (nodesend:Operation{{name:"{dependency[1]}"}})')
-            q.append(f'MERGE (nodestart:Service{{name:"{dependency[2]}"}})')
+            q = [
+                f'MERGE (nodestart:Service{{name:"{dependency[0]}"}})',
+                f'MERGE (nodesend:Operation{{name:"{dependency[1]}"}})',
+                f'MERGE (nodestart:Service{{name:"{dependency[2]}"}})',
+            ]
+
             if "communication" in dependency[3]:
                 q.append(f'MERGE (nodesend:CommunicationLayer{{name:"{dependency[3]}"}})')
                 q.append(f'MATCH (nodestart:CommunicationLayer{{name:"{dependency[3]}"}}), (nodesend:Service{{name:"{dependency[2]}"}}) MERGE (nodestart)-[:PART_OF]->(nodesend)')
@@ -50,7 +56,7 @@ class startWorkflowConnector(CoreConnector):
 
             q.append(f'MATCH (nodestart:Operation{{name:"{dependency[0]}"}}), (nodesend:Operation{{name:"{dependency[1]}"}}) MERGE (nodestart)-[:DEPENDS]->(nodesend)')
             q.append(f'MATCH (nodestart:Operation{{name:"{dependency[1]}"}}), (nodesend:Service{{name:"{dependency[0]}"}}) MERGE (nodestart)-[:PART_OF]->(nodesend)')
-            
+
 
             for query in q:
                 results = db.query(query)

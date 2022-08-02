@@ -68,7 +68,7 @@ class CoreConnector():
             event['time'] = time.time()
         else:
             comm_span = self.tracer.start_span(f'communication-layer-{event["name"]}', child_of=span_ctx, start_time=event['time'])
-            
+
             end =  time.time()
             comm_span.finish(end)
             print(f"Added comlayer: start: {event['time']} end: {end}")
